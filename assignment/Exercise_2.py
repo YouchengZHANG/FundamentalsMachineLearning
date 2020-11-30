@@ -3,15 +3,11 @@
 
 # 1 Comment on your solution to exercise 1b
 
-#  Comment on others' solution to Exercise 1b
-
+# 2 Comment on others' solution to Exercise 1b
 
 
 # 3 Data Preparation
-
-from enum import unique
 import numpy as np
-from numpy.core.defchararray import array
 from sklearn.datasets import load_digits
 from sklearn import model_selection
 
@@ -113,216 +109,177 @@ plt.show()
 # 5 QDA
 # 5.1 Implement QDA Training (6 points)
 
+def fit_qda(training_features, training_labels):
+
+    training_labels = (training_labels == list(set(training_labels))[0]).__invert__().astype(int)
+    TL = set(training_labels)   # [1,7]
+    p = [len(training_features[training_labels==tl,:])/len(training_features) for tl in TL]
+    mu = np.array([np.mean(training_features[training_labels==tl, : ], axis=0) for tl in TL])  # ==1,==7  ,  (2,2)
+    covmat = np.array([np.cov(training_features[training_labels == tl,:].T) for tl in TL])
+
+    return mu, covmat, p
+
+mu, covmat, p = fit_qda(training_features=X_train, training_labels=Y_train)
 
 
+# 5.2 Implement QDA Prediction (3 points)
+
+def predict_qda(mu, covmat, p, test_features):
+
+    TF = test_features
+    #ps = np.array([]).reshape(len(TF),2)
+
+    ps = []
+    for i in range(len(TF)):  # number of sample
+
+        for k in range(len(p)):   # number of class
+            d = TF[i, :] - mu[k,:]   # diff of means
+            M = (-1/2) * np.dot( np.dot(d.T, np.linalg.inv(covmat[k,:,:])), d)    # Mahalanobis Distance
+            g = 1 / np.sqrt((2 * np.pi ** mu.shape[1]) * np.linalg.det(covmat[k,:,:]))    # terms before exp
+            pp = g * np.e ** M  # Concatenate all the terms
+
+            ps = np.append(ps, pp)
 
 
+    ps = np.array(ps).reshape(len(TF),TF.shape[1])
+    test_labels = np.argmax(ps, axis=1)
+
+    return test_labels
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# print the size of images
-# the number of sample = 1797
-# the size of each image = (8,8)
-np.shape(data)
-np.shape(images)
-
-
-# Visualize one image of a 3 using the imshow
-import matplotlib.pyplot as plt
-img = images[3]
-assert 2 == len(img.shape)
-plt.figure()
-plt.gray()
-plt.imshow(img, interpolation="nearest") 
-plt.show()
-
-# Visualize by changing interpolation="bicubic" 
-plt.imshow(img, interpolation="bicubic")
-plt.show()
-
-
-# Split data into train/test set
-from sklearn import model_selection
-X_all = data 
-Y_all = target
-X_train , X_test , Y_train , Y_test = model_selection.train_test_split(X_all, Y_all,test_size = 0.4, random_state = 0)
-
-
-# 3.2 Distance function computation using loops (3 points)
-# Use the X_train and X_test as input
-def dist_loop(training, test):
-
-    dist = [ np.linalg.norm(xj-xi)  for xj in training  for xi in test ]
-    distm = np.array(dist, dtype=np.float64).reshape( (len(training),len(test)) )
-
-    return distm
-
-distm1 = dist_loop(training=X_train, test=X_test)
-len(X_train), len(X_test)
-np.shape(distm1)
-
-# Measure the run time using dist_loop
-%timeit dist_loop(training=X_train, test=X_test)
-
-
-# 3.3 Distance function computation using vectorization (8 points)
-def dist_vec(training, test):
-
-    distm =  np.linalg.norm(training[ : , np.newaxis] - test, axis = 2)
-
-    return distm
-
-distm2 = dist_vec(training=X_train, test=X_test)
-len(X_train), len(X_test)
-np.shape(distm2)
-
-# Measure the run time using dist_vec
-%timeit dist_vec(training=X_train, test=X_test)
-
-
-# 3.4 Implement the k-nearest neighbor classi􏰃er (6 points)
-def KNNclassifier(x_train, y_train, x_test, K):
-
-    y_test = []
-
-    distm = dist_vec(training = x_train, test = x_test)
-    disti = np.argpartition(distm, kth = K, axis = 0)[ :K , : ]
-    distv = y_train[disti]
-    y_test = np.array([ np.bincount(distv[ : , v ]).argmax() for v in range(len(distv[0])) ])
-
-    return y_test
-
-
-def calKNNError(x_train, y_train, x_test, Y_test, K, model, stdout):
-
+def calQDAerror(true_labels,predicted_labels):
     errorA = []
-    for k in K:
-
-        if model == KNNclassifier:
-            y_test = model(x_train=x_train, y_train=y_train, x_test=x_test, K=k)
-        elif model == KNeighborsClassifier:
-            y_test = KNeighborsClassifier(n_neighbors=k).fit(x_train, y_train).predict(x_test)
-
-        N_test = len(Y_test)
-        err = (N_test - np.sum(y_test == Y_test)) / N_test
-        errorA.append( err )
-
-        if stdout == True:
-            print( "K Nearest Neighbor Classifier--> K =",k," : error rates =",round(err,5) )
+    true_labels = (true_labels == list(set(true_labels))[0]).__invert__().astype(int)
+    N_test = len(true_labels)
+    err = (N_test - np.sum(predicted_labels == true_labels)) / N_test
+    errorA.append( err )
 
     return errorA
 
+predicted_test_labels = predict_qda(mu=mu, covmat=covmat, p=p, test_features=X_test)
+predicted_train_labels = predict_qda(mu=mu, covmat=covmat, p=p, test_features=X_train)
 
-# Subset the data to digit 3 and 9
-# Split the subset data to train/test set
-X_sub = data[ (target== 3)|(target== 9) , : ]
-Y_sub = target[ (target== 3)|(target== 9) ]
-X_train , X_test , Y_train , Y_test = model_selection.train_test_split(X_sub, Y_sub,test_size = 0.4, random_state = 0)
+calQDAerror(true_labels=Y_train,predicted_labels=predicted_train_labels)
+calQDAerror(true_labels=Y_test,predicted_labels=predicted_test_labels)
 
-# Set different K = [1, 3, 5, 9, 17, 33]
-K = [1, 3, 5, 9, 17, 33]
 
-# Compute the error rate with different K
-errorKNN = calKNNError(x_train=X_train, y_train=Y_train, x_test=X_test, Y_test=Y_test, K=K, model=KNNclassifier, stdout=True)
-
-# Plot the dependency of the classification performance on K
-plt.plot(K,errorKNN, label = "K")
-plt.show()
+# 5.3 Visualization (5 points)
 
 
 
-# 4 Cross-validation (8 points)
-def split_folds(data, target, L):
-    idx = np.random.permutation(len(data))
-    idx_sp = np.array_split(idx,L)
 
-    X_folds = [ data[i,:] for i in idx_sp ] 
-    Y_folds = [ target[i,] for i in idx_sp ]  
+# 5.4 Performance evaluation (3 points)
+from sklearn.model_selection import KFold
 
-    return X_folds, Y_folds
+def evaluateQDA(X,Y,k):
+    cv = KFold(n_splits=k, shuffle=True)
 
-def evaluateKNN(data, target, L, K, model, stdout):
+    for train_ind, test_ind in cv.split(Y):
+        X_train, Y_train = X[train_ind,:], Y_sub[train_ind,]
+        X_test, Y_test = X[test_ind,:], Y_sub[test_ind,]
 
-    MeanL = []
-    DevL = []
-    for ls in L:
-        X_folds, Y_folds = split_folds(data=data, target=target, L=ls)
-        errorK = []
-        for l in range(ls):
-            lx = [ x for x in range(ls) if x != l ]
-            X_test = X_folds[l]
-            Y_test = Y_folds[l]
+        #print(np.take(Y_sub,train_index), np.take(Y_sub,test_index))
 
-            X_train = np.concatenate( [ X_folds[i] for i in lx ] , axis=0 )
-            Y_train = np.concatenate( [ Y_folds[i] for i in lx ] , axis=0 )
+        mu, covmat, p = fit_qda(training_features=X_train, training_labels=Y_train)
+        predicted_test_labels = predict_qda(mu=mu, covmat=covmat, p=p, test_features=X_test)
+        predicted_train_labels = predict_qda(mu=mu, covmat=covmat, p=p, test_features=X_train)  
 
-            errorKNN = calKNNError(x_train=X_train, y_train=Y_train, x_test=X_test, Y_test=Y_test, K=K, model=model, stdout=stdout)[0]
-            errorK.append(errorKNN)
-        if stdout == True:
-            print("KNN classifier -->","Fold =",ls,": Error rate Mean =",round(np.mean(errorK),3),"; Std =",round(np.std(errorK),5))
+        errA = calQDAerror(true_labels=Y_train,predicted_labels=predicted_train_labels)
+        errB = calQDAerror(true_labels=Y_test,predicted_labels=predicted_test_labels)
         
-        MeanL.append(np.mean(errorK))
-        DevL.append(np.std(errorK))
+        print(errA,errB)
 
-    #errorKL = [ [ errorL[l][k]  for l in range(len(L))] for k in range(len(K)) ]
-    return MeanL, DevL
-
-# Randomly split the given data and labels into L folds, here take L = 3
-X_folds, Y_folds = split_folds(data=data, target=target, L=3)
-X_folds
-
-# Evaluate the KNN performance on full datasets over the L repetitions
-# Set L = [2,5,10]
-L = [2,5,10]
-
-# Set K = [1]
-MeanL1, DevL1 = evaluateKNN(data=data, target=target, L=[2,5,10], K=[1], model=KNNclassifier, stdout=True)
-%timeit evaluateKNN(data=data, target=target, L=[2,5,10], K=[1], model=KNNclassifier, stdout=False)
-
-# Set a bigger K = [33]
-MeanL33, DevL33 = evaluateKNN(data=data, target=target, L=[2,5,10], K=[33], model=KNNclassifier, stdout=True)
-%timeit evaluateKNN(data=data, target=target, L=[2,5,10], K=[33], model=KNNclassifier, stdout=False)
-
-# Plot the dependency of the classification performance on L using KNNclassifier
-plt.plot(L,MeanL1, label = "error rate Mean (K=1)")
-plt.plot(L,DevL1, label = "error rate Std (K=1)")
-plt.plot(L,MeanL33, label = "error rate Mean (K=33)")
-plt.plot(L,DevL33, label = "error rate Std (K=33)")
-plt.legend()
-plt.show()
+evaluateQDA(X=reduced_x,Y=Y_sub,k=10)
 
 
-# Use sklearn library method: sklearn.neighbors.KNeighborsClassifier()
-from sklearn.neighbors import KNeighborsClassifier
 
-# Set K = [1]
-MeanL1_skt, DevL1_skt = evaluateKNN(data=data, target=target, L=[2,5,10], K=[1], model=KNeighborsClassifier, stdout=True)
-%timeit evaluateKNN(data=data, target=target, L=[2,5,10], K=[1], model=KNeighborsClassifier, stdout=False)
+# 6 LDA (8 points)
+# 6.1 Implement LDA Training (6 points)
+def fit_lda(training_features, training_labels):
 
-# Set a bigger K = [33]
-MeanL33_skt, DevL33_skt = evaluateKNN(data=data, target=target, L=[2,5,10], K=[33], model=KNeighborsClassifier, stdout=True)
-%timeit evaluateKNN(data=data, target=target, L=[2,5,10], K=[33], model=KNeighborsClassifier, stdout=False)
+    training_labels = (training_labels == list(set(training_labels))[0]).__invert__().astype(int)
+    TL = set(training_labels)   # [1,7]
+    p = [len(training_features[training_labels==tl,:])/len(training_features) for tl in TL]
+    mu = np.array([np.mean(training_features[training_labels==tl, : ], axis=0) for tl in TL])  # ==1,==7  ,  (2,2)
+    covmat = np.cov(training_features.T)
 
-# Plot the dependency of the classification performance on L using sklearn library
-plt.plot(L,MeanL1_skt, label = "skt error rate Mean (K=1)")
-plt.plot(L,DevL1_skt, label = "skt error rate Std (K=1)")
-plt.plot(L,MeanL33_skt, label = "skt error rate Mean (K=33)")
-plt.plot(L,DevL33_skt, label = "skt error rate Std (K=33)")
-plt.legend()
-plt.show()
+    return mu, covmat, p
+
+mu, covmat, p = fit_lda(training_features=X_train, training_labels=Y_train)
+
+
+# 6.2 Implement LDA Prediction (3 points)
+
+def predict_lda(mu, covmat, p, test_features):
+
+    TF = test_features
+    #ps = np.array([]).reshape(len(TF),2)
+
+    ps = []
+    for i in range(len(TF)):  # number of sample
+
+        for k in range(len(p)):   # number of class
+            d = TF[i, :] - mu[k,:]   # diff of means
+            M = (-1/2) * np.dot( np.dot(d.T, np.linalg.inv(covmat[:,:])), d)    # Mahalanobis Distance
+            g = 1 / np.sqrt((2 * np.pi ** mu.shape[1]) * np.linalg.det(covmat[:,:]))    # terms before exp
+            pp = g * np.e ** M  # Concatenate all the terms
+
+            ps = np.append(ps, pp)
+
+
+    ps = np.array(ps).reshape(len(TF),TF.shape[1])
+    test_labels = np.argmax(ps, axis=1)
+
+    return test_labels
+
+
+def calLDAerror(true_labels,predicted_labels):
+    errorA = []
+    true_labels = (true_labels == list(set(true_labels))[0]).__invert__().astype(int)
+    N_test = len(true_labels)
+    err = (N_test - np.sum(predicted_labels == true_labels)) / N_test
+    errorA.append( err )
+
+    return errorA
+
+predicted_train_labels = predict_lda(mu=mu, covmat=covmat, p=p, test_features=X_train)
+predicted_test_labels = predict_lda(mu=mu, covmat=covmat, p=p, test_features=X_test)
+
+calLDAerror(true_labels=Y_train,predicted_labels=predicted_train_labels)
+calLDAerror(true_labels=Y_test,predicted_labels=predicted_test_labels)
+
+
+
+# 6.3 Visualization (5 points)
+
+
+
+
+# 6.4 Performance evaluation (3 points)
+from sklearn.model_selection import KFold
+
+def evaluateLDA(X,Y,k):
+    cv = KFold(n_splits=k, shuffle=True)
+
+    for train_ind, test_ind in cv.split(Y):
+        X_train, Y_train = X[train_ind,:], Y_sub[train_ind,]
+        X_test, Y_test = X[test_ind,:], Y_sub[test_ind,]
+
+        #print(np.take(Y_sub,train_index), np.take(Y_sub,test_index))
+
+        mu, covmat, p = fit_lda(training_features=X_train, training_labels=Y_train)
+        predicted_test_labels = predict_lda(mu=mu, covmat=covmat, p=p, test_features=X_test)
+        predicted_train_labels = predict_lda(mu=mu, covmat=covmat, p=p, test_features=X_train)  
+
+        errA = calLDAerror(true_labels=Y_train,predicted_labels=predicted_train_labels)
+        errB = calLDAerror(true_labels=Y_test,predicted_labels=predicted_test_labels)
+        
+        print(errA,errB)
+
+evaluateLDA(X=reduced_x,Y=Y_sub,k=10)
+
+
+
+
 
 
