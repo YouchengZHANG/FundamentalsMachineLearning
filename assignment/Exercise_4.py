@@ -3,17 +3,12 @@
 
 # 1 Comment on your and other’s solution to Exercise 3
 
-
-
 # 2 Density Tree and Decision Tree (20 points)
-
 
 # Preliminaries
 
 # import modules
 import numpy as np
-from numpy.compat.py3k import npy_load_module
-# your code here
 
 # base classes
 
@@ -33,7 +28,6 @@ class Tree:
             else:
                 node = node.right
         return node
-
 
 
 # Density Tree
@@ -101,10 +95,6 @@ class DensityTree(Tree):
         else:
             p = 0
         return p
-
-
-
-
 
 def make_density_split_node(node, N, feature_indices):
     '''
@@ -301,8 +291,6 @@ def make_decision_split_node(node, feature_indices):
     # return the children (to be placed on the stack)
     return left, right    
 
-
-
 def make_decision_leaf_node(node,minlength):
     '''
     node: the node to become a leaf
@@ -370,6 +358,7 @@ def DCTclassifier(X_train,Y_train,X_test,Y_test,n_min,return_error):
     else:
         return y_test
 
+
 # Plot the confusion matrix
 
 X_train = X_test = data
@@ -378,7 +367,9 @@ yDST, errDST = DSTclassifier(X_train,Y_train,X_test,Y_test,n_min=20,return_error
 yDCT, errDCT = DCTclassifier(X_train,Y_train,X_test,Y_test,n_min=20,return_error=True)
 
 confDST = pd.crosstab(pd.Series(Y_test, name='Truth'), pd.Series(yDST, name='DensityTree Predicted'))
+confDST
 confDCT = pd.crosstab(pd.Series(Y_test, name='Truth'), pd.Series(yDST, name='DecisionTree Predicted'))
+confDCT
 
 
 # Plot the performance under various n_min
@@ -399,23 +390,27 @@ plt.plot(n_min, errB, label='DecisionTree')
 plt.xlabel('n_min')
 plt.ylabel('Error rate')
 plt.legend()
-
+plt.show()
 
 # 4 Density Forest and Decision Forest (8 points)
+
 # Density and Decision Forest
 class DensityForest():
     def __init__(self, n_trees):
         # create ensemble
         self.trees = [DensityTree() for i in range(n_trees)]
-    
+        
     def train(self, data, prior, n_min=20):
         for tree in self.trees:
             # train each tree, using a bootstrap sample of the data
-            ... # your code here
+            bp = np.random.choice(len(data), size=len(data), replace=True)
+            bpdata = data[bp,:]
+            tree.train(data=bpdata, prior=prior, n_min=n_min)
 
     def predict(self, x):
         # compute the ensemble prediction
-        return ... # your code here
+        p = np.mean([tr.predict(x) for tr in self.trees],axis=0)
+        return p
 
 
 class DecisionForest():
@@ -426,16 +421,87 @@ class DecisionForest():
     def train(self, data, labels, n_min=0):
         for tree in self.trees:
             # train each tree, using a bootstrap sample of the data
-            ... # your code here
+            bp = np.random.choice(len(data), size=len(data), replace=True)
+            bpdata = data[bp,:]
+            bplabels = labels[bp,]
+            tree.train(data=bpdata, labels=bplabels, n_min=n_min)
 
     def predict(self, x):
         # compute the ensemble prediction
-        return ... # your code here
-
-
+        #np.bincount(np.array([tr.predict(x) for tr in self.trees])).argmax()
+        p = np.mean([tr.predict(x) for tr in self.trees],axis=0)
+        return p
 
 
 # 5 Evaluation of Density Forest and Decision Forest (6 points)
+# train forests (with 20 trees per forest), plot training error confusion matrices, and comment on your results
+
+# Train a generative classifier using 10 instances of DensityForest 
+
+def DSFclassifier(X_train,Y_train,X_test,Y_test,n_trees,return_error):
+    
+    DSFclassifier = [DensityForest(n_trees=n_trees) for _ in list(set(Y_train))]
+    [DSFclassifier[d].train(data=X_train[Y_train == list(set(target))[d],:], prior=prior[d], n_min=20) for d in range(len(set(Y_train)))]
+
+    y_test = [DSFclassifier[d].predict(X_test[i,:]) for i in range(len(X_test)) for d in range(len(set(Y_train))) ]
+    y_test = np.array(y_test).reshape([len(X_test),len(set(Y_train))])
+    y_test = np.argmax(y_test, axis=1)
+
+    if return_error == True:
+        err = (len(Y_test) - np.sum(y_test == Y_test)) / len(Y_test)
+        return y_test, err
+    else:
+        return y_test
+
+# Train a discriminative classifier using one instance of DecisionForest. 
+n_trees = 5
+def DCFclassifier(X_train,Y_train,X_test,Y_test,n_trees,return_error):
+
+    DCFclassifier = DecisionForest(n_trees=n_trees) 
+    DCFclassifier.train(data=X_train,labels=Y_train,n_min=0)
+
+    y_test = [DCFclassifier.predict(X_test[i,:]) for i in range(len(X_test))]
+    y_test = np.array(y_test).reshape([len(X_test),len(set(Y_train))])
+    y_test = np.argmax(y_test, axis=1)
+
+    if return_error == True:
+        err = (len(Y_test) - np.sum(y_test == Y_test)) / len(Y_test)
+        return y_test, err
+    else:
+        return y_test
+
+
+X_train = X_test = data
+Y_train = Y_test = target
+
+yDSF, errDSF = DSFclassifier(X_train,Y_train,X_test,Y_test,n_trees=20,return_error=True)
+yDCF, errDCF = DCFclassifier(X_train,Y_train,X_test,Y_test,n_trees=20,return_error=True)
+
+confDSF = pd.crosstab(pd.Series(Y_test, name='Truth'), pd.Series(yDSF, name='DensityForest Predicted'))
+confDSF
+confDCF = pd.crosstab(pd.Series(Y_test, name='Truth'), pd.Series(yDCF, name='DecisionForest Predicted'))
+confDCF
+
+
+# Compare results with the confusion matrix obtained from sklearn.ensemble.RandomForestClassifier with 20 trees
+from sklearn.ensemble import RandomForestClassifier
+
+def RDFclassifier(X_train,Y_train,X_test,Y_test,n_trees,return_error):
+
+    RDFclassifier = RandomForestClassifier(n_estimators=n_trees) 
+    RDFclassifier.fit(X_train,Y_train)
+    y_test = RDFclassifier.predict(X_test)
+
+    if return_error == True:
+        err = (len(Y_test) - np.sum(y_test == Y_test)) / len(Y_test)
+        return y_test, err
+    else:
+        return y_test
+
+yRDF, errRDF = RDFclassifier(X_train,Y_train,X_test,Y_test,n_trees=20,return_error=True)
+
+confRDF = pd.crosstab(pd.Series(Y_test, name='Truth'), pd.Series(yRDF, name='RandomForest Predicted'))
+confRDF
 
 
 
@@ -448,6 +514,8 @@ class DecisionForest():
 
 
 
+
+np.random.choice(5, size=5, replace=False)
 
 
 y_test.shape
