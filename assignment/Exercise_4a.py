@@ -125,12 +125,201 @@ def OneHotEncoder(df, Var, combined):
     return df
 
 cateVar = ['club', 'leagueCountry', 'position', 'refCountry']
-df2 = OneHotEncoder(df1, Var=cateVar, combined=False)
+df3 = OneHotEncoder(df2, Var=cateVar, combined=False)
 
 
 
 
 # 2.2 Model Creation (8 points)
+
+
+
+
+
+
+
+
+
+# Regression Tree and Regression Forest
+
+class Node:
+    pass
+
+class Tree:
+    def __init__(self):
+        self.root = Node()
+    
+    def find_leaf(self, x):
+        node = self.root
+        while hasattr(node, "feature"):
+            j = node.feature
+            if x[j] <= node.threshold:
+                node = node.left
+            else:
+                node = node.right
+        return node
+
+class RegressionTree(Tree):
+    def __init__(self):
+        super(RegressionTree, self).__init__()
+        
+    def train(self, data, labels, n_min=20):
+        '''
+        data: the feature matrix for all digits
+        labels: the corresponding ground-truth responses
+        n_min: termination criterion (don't split if a node contains fewer instances)
+        '''
+        N, D = data.shape
+        D_try = int(np.sqrt(D)) # how many features to consider for each split decision
+ 
+        # initialize the root node
+        self.root.data = data
+        self.root.labels = labels
+        
+        stack = [self.root]
+        while len(stack):
+            node = stack.pop()
+            n = node.data.shape[0] # number of instances in present node
+            if n >= n_min :
+                # Call 'make_decision_split_node()' with 'D_try' randomly selected 
+                # feature indices. This turns 'node' into a split node
+                # and returns the two children, which must be placed on the 'stack'.
+
+                valid_features = np.where(np.min(node.data, axis=0) != np.max(node.data, axis=0))[0]
+                feature_indices = np.random.choice(valid_features, size=D_try, replace=False)
+                left, right = make_decision_split_node(node=node, feature_indices=feature_indices)
+                stack.extend([left,right])
+
+            else:
+                # Call 'make_decision_leaf_node()' to turn 'node' into a leaf node.
+                make_decision_leaf_node(node=node,minlength=len(set(labels)))
+                
+
+    def predict(self, x):
+        leaf = self.find_leaf(x)
+        # compute p(y | x)
+        #p = leaf.response / leaf.N
+        p = leaf.response
+        return p
+
+
+def make_decision_split_node(node, feature_indices):
+    '''
+    node: the node to be split
+    feature_indices: a numpy array of length 'D_try', containing the feature 
+                     indices to be considered in the present split
+    '''
+    n, D = node.data.shape
+    e_min = float("inf")
+    j_min, t_min = None, None
+
+    # find best feature j (among 'feature_indices') and best threshold t for the split
+    for j in feature_indices:
+        data_unique = np.unique((node.data[:, j]))     # N x 1
+        # Compute candidate thresholds
+        tj = np.mean([data_unique[:-1],data_unique[1:]], axis=0)     
+        
+        # Illustration: for loop - hint: vectorized version is possible
+        for t in tj:
+            
+            NL = len(node.labels[node.data[:,j] < t])
+            NR = len(node.labels[node.data[:,j] > t])
+
+            NLk = node.labels[node.data[:,j] < t]
+            NRk = node.labels[node.data[:,j] > t]
+
+            errSEL = sum([(k - sum(NLk)/NL) ** 2 for k in NLk])
+            errSER = sum([(k - sum(NRk)/NR) ** 2 for k in NRk])
+            
+            # Compute the error
+            SE_error = errSEL + errSER
+
+            # choose the best threshold that
+            if SE_error < e_min:
+                e_min = SE_error
+                j_min = j
+                t_min = t
+
+    # create children
+    left = Node()
+    right = Node()
+
+    # initialize 'left' and 'right' with the data subsets and labels
+    # according to the optimal split found above
+    left.data = node.data[node.data[:,j_min] < t_min,:]
+    left.labels = node.labels[node.data[:,j_min] < t_min]
+    right.data = node.data[node.data[:,j_min] > t_min,:]
+    right.labels = node.labels[node.data[:,j_min] > t_min]
+
+    # turn the current 'node' into a split node
+    # (store children and split condition)
+    node.left = left
+    node.right = right
+    node.feature = j_min
+    node.threshold = t_min
+
+    # return the children (to be placed on the stack)
+    return left, right    
+
+def make_decision_leaf_node(node,minlength):
+    '''
+    node: the node to become a leaf
+    '''
+    # compute and store leaf response
+    node.N = len(node.data)
+    #node.response = np.bincount(node.labels,minlength=minlength)
+    node.response = sum(node.labels) / node.N
+
+
+class RegressionForest():
+    def __init__(self, n_trees):
+        # create ensemble
+        self.trees = [RegressionTree() for i in range(n_trees)]
+    
+    def train(self, data, labels, n_min=0):
+        for tree in self.trees:
+            # train each tree, using a bootstrap sample of the data
+            bp = np.random.choice(len(data), size=len(data), replace=True)
+            bpdata = data[bp,:]
+            bplabels = labels[bp,]
+            tree.train(data=bpdata, labels=bplabels, n_min=n_min)
+
+    def predict(self, x):
+        # compute the ensemble prediction
+        #np.bincount(np.array([tr.predict(x) for tr in self.trees])).argmax()
+        p = np.mean([tr.predict(x) for tr in self.trees],axis=0)
+        return p
+
+
+n_trees = 5
+def RSFclassifier(X_train,Y_train,X_test,Y_test,n_trees,return_error):
+
+    DCFclassifier = RegressionForest(n_trees=n_trees) 
+    DCFclassifier.train(data=X_train,labels=Y_train,n_min=0)
+
+    y_test = [DCFclassifier.predict(X_test[i,:]) for i in range(len(X_test))]
+    y_test = np.array(y_test).reshape([len(X_test),len(set(Y_train))])
+    y_test = np.argmax(y_test, axis=1)
+
+    if return_error == True:
+        err = (len(Y_test) - np.sum(y_test == Y_test)) / len(Y_test)
+        return y_test, err
+    else:
+        return y_test
+
+yRSF, errRSF = RSFclassifier(X_train,Y_train,X_test,Y_test,n_trees=5,return_error=True)
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
