@@ -170,7 +170,16 @@ df3 = OneHotEncoder(df, Var=cateVar, combined=False)
 
 # 2.2 Model Creation (8 points)
 # linear Regression
+class LinearRegression:
+    def __init__(self):
+        self.beta = None
 
+    def train(self, data, labels):
+        pass
+
+    def predict(self, x):
+        self.response = np.dot(x, self.beta)
+        return self.response
 
 
 
