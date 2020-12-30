@@ -9,7 +9,7 @@
 # https://osf.io/2prib/
 # https://nbviewer.jupyter.org/github/mathewzilla/redcard/blob/master/Crowdstorming_visualisation.ipynb
 # https://notebook.community/cmawer/pycon-2017-eda-tutorial/notebooks/1-RedCard-EDA/3-Redcard-Dyads
-
+# centering a variable is subtracting the mean of the variable from each data point so that the new variable’s mean is 0; scaling a variable is multiplying each data point by a constant in order to alter the range of the data.
 
 
 # 2.1 Loading and Cleaning the Data (10 points)
@@ -33,7 +33,7 @@ np.unique(df0['games'])
 
 # Which irrelevant features might be dropped?
 # birthday, ties, defeats, goals,yellowCards, nIAT, seIAT, nExp, seExp, victories, Alpha_3, photoID(unless want to improve color rating)
-irfeature = ['player','birthday','ties','defeats','goals','yellowCards', 'nIAT', 'seIAT', 'nExp', 'seExp', 'victories', 'Alpha_3', 'photoID']
+irfeature = ['player','birthday','ties','defeats','goals','yellowCards', 'seIAT', 'seExp', 'victories', 'Alpha_3', 'photoID']
 df = df0.drop(irfeature, axis=1)
 df.shape
 
@@ -41,7 +41,8 @@ df.shape
 # Race color: can be computed from rater1 and rater2
 # age: can be computed from birthday
 # df['age'] = (pd.to_datetime('01.07.2014') - pd.to_datetime(df['birthday'], errors='coerce')).astype('<m8[Y]') 
-df['skinCol']=(df['rater1'] + df['rater2']) / 2
+df['skinCol'] = (df['rater1'] + df['rater2']) / 2
+df['skinColDiff'] = df['rater1'] - df['rater2']
 df['semiredCards'] = df['yellowReds'] + df['redCards']
 
 # Are there missing data values (e.g. missing skin color ratings), and how should they be dealt with?
@@ -57,11 +58,50 @@ df.shape
 ra = df['rater1'] == df['rater2']
 ra.value_counts()
 
+var = ['skinCol','rater1','rater2','skinColDiff']
+fig, ax = plt.subplots(1,len(var))
+for i in range(len(var)):
+    ax[i].hist(df[var[i]], bins = 5, color = np.random.rand(3,))
+    ax[i].set_title(var[i])
+plt.show()
+
 # Should referees with very few appearances be excluded from the dataset?
-# No.
+# Yes. We first calculate the number of appearances of referees and number of referee dyads pair (refCount)
+df['refCount']=0
+refs=pd.unique(df['refNum'].values.ravel())
+#for each ref, count their dyads
+for r in refs:
+    df['refCount'][df['refNum']==r]=len(df[df['refNum']==r])    
+
+fig, ax = plt.subplots(1,2)
+ax[0].hist(df['refNum'].value_counts(), bins = 100, color = np.random.rand(3,))
+ax[0].set_xlabel('number of referee occurances')
+ax[0].set_ylabel('frequency')
+ax[1].hist(df['refCount'].value_counts(),  bins = 40, color = np.random.rand(3,))
+ax[1].set_xlabel('number of referee dyads pair')
+ax[1].set_ylabel('frequency')
+plt.show()
 
 # Should features be normalized and/or centralized?
-# Yes. 
+# Yes. We performed the centering on the data.
+
+# Centering data
+def Center(df, Var, excluded=True):
+
+    if excluded == True:
+        cVar = [v for v in df.columns.values if v not in Var]
+        for v in cVar : 
+            df[v] = df[v] - np.mean(df[v])
+    else:
+        cVar = Var
+        for v in cVar : 
+            df[v] = df[v] - np.mean(df[v])
+
+    return df
+
+exVar = ["playerShort","semiredCards"]
+df = Center(df, Var=exVar, excluded=True)
+
 
 # Disaggregater data
 def Disaggregater(df):
@@ -99,16 +139,14 @@ def Disaggregater(df):
     
     return dfout
 
-df1 = Disaggregater(df)
-df1.shape
-df1.head()
-
-# Clean-up data
-cleanVar = ['yellowReds','redCards','rater1','rater2']
-df2 = df1.drop(cleanVar, axis=1)
-# plot
+df = Disaggregater(df)
+df.shape
+df.head()
 
 
+# Clean-up data and unwanted variables
+cleanVar = ['yellowReds','redCards','rater1','rater2','nIAT', 'nExp']
+df = df.drop(cleanVar, axis=1)
 
 # Finally, One-hot encode categorial variables
 def OneHotEncoder(df, Var, combined):
@@ -125,13 +163,13 @@ def OneHotEncoder(df, Var, combined):
     return df
 
 cateVar = ['club', 'leagueCountry', 'position', 'refCountry']
-df3 = OneHotEncoder(df2, Var=cateVar, combined=False)
+df3 = OneHotEncoder(df, Var=cateVar, combined=False)
 
 
 
 
 # 2.2 Model Creation (8 points)
-
+# linear Regression
 
 
 
@@ -311,7 +349,46 @@ yRSF, errRSF = RSFclassifier(X_train,Y_train,X_test,Y_test,n_trees=5,return_erro
 
 
 
+# Implement both models and determine their squared test errors by means of cross-validation
 
+from sklearn.model_selection import KFold
+import pandas as pd
+
+def evaluateR(X,Y,k,model,n_trees):
+    cv = KFold(n_splits=k, shuffle=True)
+    errTs = []
+    errTx = []
+    for train_ind, test_ind in cv.split(Y):
+        X_train, Y_train = X[train_ind,:], Y[train_ind,]
+        X_test, Y_test = X[test_ind,:], Y[test_ind,]
+
+        #print(np.take(Y_sub,train_index), np.take(Y_sub,test_index))
+
+        if model == LinearRegression:
+            pass
+
+        elif model == RSFclassifier:
+            yRSF, errRSF = RSFclassifier(X_train,Y_train,X_test,Y_test,n_trees=n_trees,return_error=True)
+            errT = errRSF
+        
+        errTx = np.append(errTx, errT)
+
+    df = pd.DataFrame({'Test error':errTx})
+
+    print(df)
+    df = pd.DataFrame({'Test error Mean':[np.mean(errTx)],
+                        'Test error Std':[np.std(errTx)] })
+    print(df)
+
+
+
+
+
+
+
+
+
+# 2.3 Answering the Research Question (6 points)
 
 
 
