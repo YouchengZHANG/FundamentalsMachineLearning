@@ -13,6 +13,8 @@
 
 
 # 2.1 Loading and Cleaning the Data (10 points)
+from matplotlib import colors
+from Exercise_2 import X_train
 from operator import length_hint
 import pandas as pd                                    
 import numpy as np                             
@@ -40,10 +42,23 @@ df.shape
 # What relevant features might be missing, but can be computed?
 # Race color: can be computed from rater1 and rater2
 # age: can be computed from birthday
+# the fraction of games where the player will receive a red card: can be computed
+# the fraction of games where the player will receive a red card by a specific referee: can be computed
 # df['age'] = (pd.to_datetime('01.07.2014') - pd.to_datetime(df['birthday'], errors='coerce')).astype('<m8[Y]') 
 df['skinCol'] = (df['rater1'] + df['rater2']) / 2
 df['skinColDiff'] = df['rater1'] - df['rater2']
 df['semiredCards'] = df['yellowReds'] + df['redCards']
+
+df['semiredCardsRefFrac'] = 0
+df['semiredCardsRefFrac'] = df['semiredCards'] / df['games']
+
+df['semiredCardsFrac'] = 0
+players=pd.unique(df['playerShort'].values.ravel())
+for p in players:
+    Nr = np.sum(df[df['playerShort']==p]['semiredCards'])
+    N = len(df[df['playerShort']==p])
+    df['semiredCardsFrac'][df['playerShort']==p] = Nr / N
+
 
 # Are there missing data values (e.g. missing skin color ratings), and how should they be dealt with?
 # Yes. Censoring exists in the data (N_skincolor_na = 21407). To overcome the issue, simply removal or imputation works.
@@ -99,11 +114,11 @@ def Center(df, Var, excluded=True):
 
     return df
 
-exVar = ["playerShort","semiredCards"]
+exVar = ["playerShort","semiredCards","semiredCardsFrac", "semiredCardsRefFrac"]
 df = Center(df, Var=exVar, excluded=True)
 
 
-# Disaggregater data
+# Disaggregater data (optional?, not neccesary in our case)
 def Disaggregater(df):
     df['refCount']=0
 
@@ -179,7 +194,7 @@ class LinearRegression:
 
     def predict(self, x):
         self.response = np.dot(x, self.beta)
-        return self.response
+        return self.response   # the predicted fraction of a player receives red cards in total games he has played
 
 
 
@@ -349,7 +364,7 @@ def RSFclassifier(X_train,Y_train,X_test,Y_test,n_trees,return_error):
     y_test = np.argmax(y_test, axis=1)
 
     if return_error == True:
-        err = (len(Y_test) - np.sum(y_test == Y_test)) / len(Y_test)
+        err =  np.sum((Y_test - y_test) ** 2)           #(len(Y_test) - np.sum(y_test == Y_test)) / len(Y_test)
         return y_test, err
     else:
         return y_test
@@ -365,7 +380,6 @@ import pandas as pd
 
 def evaluateR(X,Y,k,model,n_trees):
     cv = KFold(n_splits=k, shuffle=True)
-    errTs = []
     errTx = []
     for train_ind, test_ind in cv.split(Y):
         X_train, Y_train = X[train_ind,:], Y[train_ind,]
@@ -389,15 +403,104 @@ def evaluateR(X,Y,k,model,n_trees):
                         'Test error Std':[np.std(errTx)] })
     print(df)
 
+    return np.mean(errTx)
 
-
-
-
-
+evaluateR(X,Y,k=10,model=LinearRegression)
+evaluateR(X,Y,k=10,model=RSFclassifier)
 
 
 
 # 2.3 Answering the Research Question (6 points)
+# Create 19 new training sets where the skin color variable is randomly shuffed among the players
+# Each dataset uses a different permutation of skin colors, but keeps all other features and the response intact
+
+def Permutation(df, Var):
+    for v in Var:
+        df[v] = np.random.shuffle(df[v])
+    return df
+
+pVar = ['skinCol']
+errPA, errPB = [], []
+for _ in range(19):
+    dfp = Permutation(df, Var=pVar)
+    errTxA = evaluateR(X,Y,k=10,model=LinearRegression)
+    errTxB = evaluateR(X,Y,k=10,model=RSFclassifier,n_trees=10)
+    errPA, errPB = np.append(errPA, errTxA), np.append(errPB, errTxB)
+
+errPA
+errPB
+
+
+# 2.4 How to lie with statistics (6 points)
+# Team 6: un-significant, control Height, Weight, Age
+# Team 14: significant, control Position, Height, Weight, Age, Referee
+
+
+
+
+
+
+
+# 2.5 Alternative hypotheses (6 points)
+# hypotheses 01:  dark colored players tends to play in those positions 
+# which have higher chances among all the same colored players to receive RedCards
+
+h1 = df[['playerShort','skinCol','position','semiredCards']]
+
+h1['PosRedsCount'] = 0
+
+Col = pd.unique(h1['skinCol'].values.ravel())
+Var = ['skinCol'+str(i) for i in Col]
+for v in Var:
+    h1[v] = 0
+
+pos = pd.unique(h1['position'].values.ravel())
+for p in pos:
+    Nr = np.sum(h1[h1['position']==p]['semiredCards'])
+    h1['PosRedsCount'][h1['position']==p] = Nr
+
+    h1 = h1.drop_duplicates(subset=['playerShort'])
+
+    for s in range(len(Col)):
+        Nc = len(h1[h1['position']==p][h1['skinCol']==Col[s]])
+        h1[Var[s]][h1['position']==p] = Nc
+
+plt.figure()
+plt.bar(h1['position'],h1['PosRedsCount'],color = np.random.rand(3,))
+plt.xticks(rotation=90)
+plt.show()
+
+h1_ = h1.drop_duplicates(subset=['position'])
+h1_['skinColDark'] = np.sum(h1_[['skinCol0.625','skinCol0.75','skinCol0.875','skinCol1.0']],axis=1)
+h1_['skinColLight'] = np.sum(h1_[['skinCol0.0','skinCol0.125','skinCol0.25','skinCol0.375']],axis=1)
+h1_['skinColTotal'] = np.sum(h1_[Var],axis=1)
+h1_['skinColDark'] = h1_['skinColDark'] / np.sum(np.sum(h1_[['skinCol0.625','skinCol0.75','skinCol0.875','skinCol1.0']],axis=0))
+h1_['skinColLight'] = h1_['skinColLight'] / np.sum(np.sum(h1_[['skinCol0.0','skinCol0.125','skinCol0.25','skinCol0.375']],axis=0))
+
+h1_ = h1_[['position','skinColDark','skinColLight']]
+
+plt.figure()
+x = np.arange(len(h1_))
+plt.bar(x,h1_['skinColDark'],width=0.25,label='Dark',color = 'black')
+plt.bar(x+0.25,h1_['skinColLight'],width=0.25,label='Light',color = 'lightgrey')
+plt.xticks(x + 0.25 / 2, h1_['position'],rotation=90)
+plt.legend()
+plt.show()
+
+
+# hypotheses 02:  
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
