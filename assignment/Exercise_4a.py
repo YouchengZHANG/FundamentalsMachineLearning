@@ -14,8 +14,6 @@
 
 # 2.1 Loading and Cleaning the Data (10 points)
 from matplotlib import colors
-from Exercise_2 import X_train
-from operator import length_hint
 import pandas as pd                                    
 import numpy as np                             
 import os       
@@ -28,16 +26,19 @@ df0.columns.values
 df0['games']
 np.unique(df0['games'])
 
+
 # What do the feature names (e.g. column games) stand for?
 # games: the number of games in the player-referee dyad
 # player–referee dyads including the number of matches players and referees encountered each other 
 # the number of red cards given to a player by a particular referee throughout all matches the two encountered each other.
 
+
 # Which irrelevant features might be dropped?
 # birthday, ties, defeats, goals,yellowCards, nIAT, seIAT, nExp, seExp, victories, Alpha_3, photoID(unless want to improve color rating)
-irfeature = ['player','birthday','ties','defeats','goals','yellowCards', 'seIAT', 'seExp', 'victories', 'Alpha_3', 'photoID']
+irfeature = ['player','birthday','ties','defeats','goals','yellowCards','victories', 'Alpha_3', 'photoID']
 df = df0.drop(irfeature, axis=1)
 df.shape
+
 
 # What relevant features might be missing, but can be computed?
 # Race color: can be computed from rater1 and rater2
@@ -67,6 +68,7 @@ df['skinCol'].isna().sum()
 df = df.dropna()
 df.shape
 
+
 # How good are the skin color ratings? Do the raters agree?
 # The two raters disagree about player skintone quite often (N_agree = 88365, N=27092). 
 # Besidesm censoring data in players photos also leads to missing color ratings.
@@ -79,6 +81,7 @@ for i in range(len(var)):
     ax[i].hist(df[var[i]], bins = 5, color = np.random.rand(3,))
     ax[i].set_title(var[i])
 plt.show()
+
 
 # Should referees with very few appearances be excluded from the dataset?
 # Yes. We first calculate the number of appearances of referees and number of referee dyads pair (refCount)
@@ -97,8 +100,28 @@ ax[1].set_xlabel('number of referee dyads pair')
 ax[1].set_ylabel('frequency')
 plt.show()
 
+
 # Should features be normalized and/or centralized?
-# Yes. We performed the centering on the data.
+# Yes. We performed centering on the data. 
+# Centerize the data does not really influence the outcome, but more likely to simplify the optimization process.
+# Before we center the data, we first convert the categorial variable into one-hot encoding format.
+
+# One-hot encode categorial variables
+def OneHotEncoder(df, Var, combined):
+    for v in Var:
+        ohe = pd.get_dummies(df[v],v)
+
+        if combined == True:
+            df = df.drop([v], axis=1)
+            df[v]= ohe.values.tolist()
+
+        df = df.drop([v], axis=1)
+        df = pd.concat([df, ohe], axis=1)
+
+    return df
+
+cateVar = ['club', 'leagueCountry', 'position', 'refCountry']
+df = OneHotEncoder(df, Var=cateVar, combined=False)
 
 # Centering data
 def Center(df, Var, excluded=True):
@@ -116,7 +139,6 @@ def Center(df, Var, excluded=True):
 
 exVar = ["playerShort","semiredCards","semiredCardsFrac", "semiredCardsRefFrac"]
 df = Center(df, Var=exVar, excluded=True)
-
 
 # Disaggregater data (optional?, not neccesary in our case)
 def Disaggregater(df):
@@ -159,26 +181,27 @@ df.shape
 df.head()
 
 
-# Clean-up data and unwanted variables
-cleanVar = ['yellowReds','redCards','rater1','rater2','nIAT', 'nExp']
+# Check the IAT and Exp statistics
+# When the population in a region nIAT and nExp lower than 10^3, 
+# meanIAT and meanExp have higher deviations than the countries with nIAT and nExp higher than 10^3.
+# Therefore, we remove the data with nIAT and nExp lower than 10^3
+fig, ax = plt.subplots(2,2, figsize=(8,6))
+c1, c2 = np.random.rand(3,), np.random.rand(3,)
+ax[0,0].hist( np.log10(df.drop_duplicates(subset=['nIAT'])['nIAT']) ,bins=30 ,color = c1)
+ax[0,0].set_title('log(nIAT)')
+ax[0,1].hist( np.log10(df.drop_duplicates(subset=['nExp'])['nExp']) ,bins=30 ,color = c2)
+ax[0,1].set_title('log(nExp)')
+ax[1,0].scatter(np.log10(df.drop_duplicates(subset=['nIAT'])['nIAT']), df.drop_duplicates(subset=['nIAT'])['meanIAT'], color = c1)
+ax[1,0].set_title('MeanIAT ~ log(nIAT)')
+ax[1,1].scatter(np.log10(df.drop_duplicates(subset=['nExp'])['nExp']), df.drop_duplicates(subset=['nExp'])['meanExp'], color = c2)
+ax[1,1].set_title('MeanExp ~ log(nExp)')
+plt.show()
+
+
+# Finally, Clean-up data and unwanted variables
+df = df[(df['nIAT'] > 10**3) | (df['nExp'] > 10**3)]
+cleanVar = ['yellowReds','redCards','rater1','rater2','nIAT', 'nExp', 'seIAT', 'seExp']
 df = df.drop(cleanVar, axis=1)
-
-# Finally, One-hot encode categorial variables
-def OneHotEncoder(df, Var, combined):
-    for v in Var:
-        ohe = pd.get_dummies(df[v],v)
-
-        if combined == True:
-            df = df.drop([v], axis=1)
-            df[v]= ohe.values.tolist()
-
-        df = df.drop([v], axis=1)
-        df = pd.concat([df, ohe], axis=1)
-
-    return df
-
-cateVar = ['club', 'leagueCountry', 'position', 'refCountry']
-df3 = OneHotEncoder(df, Var=cateVar, combined=False)
 
 
 
