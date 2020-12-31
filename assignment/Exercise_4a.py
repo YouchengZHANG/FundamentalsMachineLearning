@@ -213,6 +213,7 @@ class LinearRegression:
         self.beta = None
 
     def train(self, data, labels):
+        # beta = V * (B.T*B)^-1 * B.T * U.T * y
         pass
 
     def predict(self, x):
