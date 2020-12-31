@@ -45,7 +45,7 @@ df.shape
 # age: can be computed from birthday
 # the fraction of games where the player will receive a red card: can be computed
 # the fraction of games where the player will receive a red card by a specific referee: can be computed
-# df['age'] = (pd.to_datetime('01.07.2014') - pd.to_datetime(df['birthday'], errors='coerce')).astype('<m8[Y]') 
+df['age'] = (pd.to_datetime('01.07.2014') - pd.to_datetime(df['birthday'], errors='coerce')).astype('<m8[Y]') 
 df['skinCol'] = (df['rater1'] + df['rater2']) / 2
 df['skinColDiff'] = df['rater1'] - df['rater2']
 df['semiredCards'] = df['yellowReds'] + df['redCards']
@@ -513,9 +513,26 @@ plt.show()
 
 
 # hypotheses 02:  
+# referees discriminate against young players /# referees discriminate against countries/leagure players
+h2 = df[['playerShort','skinCol','semiredCards']]
+h2['age'] = (pd.to_datetime('01.07.2014') - pd.to_datetime(df0['birthday'], errors='coerce')).astype('<m8[Y]') 
+
+h2['PlayerRedsCount'] = 0
+player = pd.unique(h2['playerShort'].values.ravel())
+for p in player:
+    Nr = np.sum(h2[h2['playerShort']==p]['semiredCards'])
+    h2['PlayerRedsCount'][h2['playerShort']==p] = Nr
+h2 = h2.drop_duplicates(subset=['playerShort'])
+h2 = h2.dropna()
+
+h2_ = h2
+plt.figure()
+plt.bar(h2_['skinCol'],h2_['age'])
+plt.scatter(h2_['age'],h2_['PlayerRedsCount'])
+plt.scatter(h2_['age'],h2_['skinCol'])
 
 
-
+h2_.plot(h2_['skinCol'],h2_['PlayerRedsCount'])
 
 
 
