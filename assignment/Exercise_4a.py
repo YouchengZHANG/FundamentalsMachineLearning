@@ -385,7 +385,7 @@ def evaluateR(X,Y,k,model,n_trees,n_min, filename):
                         'Test error Std':[np.std(errTx)] })
     print(df)
 
-    return np.mean(errTx)
+    return errTx
 
 
 errLR = evaluateR(X=X_all,Y=Y_all,k=5,model=LinearRegression,n_trees=None,n_min=None,filename='LR_CV.pkl')
