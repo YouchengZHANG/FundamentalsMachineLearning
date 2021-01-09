@@ -292,6 +292,7 @@ def make_decision_split_node(node, feature_indices):
     node.right = right
     node.feature = j_min
     node.threshold = t_min
+    node.data = None
 
     # return the children (to be placed on the stack)
     return left, right    
@@ -399,6 +400,10 @@ errLR = evaluateR(X=X_all,Y=Y_all,k=5,model=LinearRegression,n_trees=None,n_min=
 errRSF = evaluateR(X=X_all,Y=Y_all,k=5,model=RSFclassifier,n_trees=5,n_min=100,filename='RSF_CV.pkl')
 
 
+ind = np.random.choice(len(X_all),1000)
+errRSF = evaluateR(X=X_all[ind,:],Y=Y_all[ind,],k=5,model=RSFclassifier,n_trees=5,n_min=100,filename='RSF_CV.pkl')
+
+
 # 2.3 Answering the Research Question (6 points)
 # Create 19 new training sets where the skin color variable is randomly shuffed among the players
 # Each dataset uses a different permutation of skin colors, but keeps all other features and the response intact
@@ -411,7 +416,7 @@ def Permutation(df, Var):
 pVar = ['skinCol']
 errPA, errPB = [], []
 for _ in range(19):
-    datap = Permutation(datap, Var=pVar)
+    datap = Permutation(data, Var=pVar)
 
     Yp_all = datap['TotalredCardsRefFrac'].values
     Xp_all = datap.drop(['TotalredCardsRefFrac'], axis=1).values
@@ -439,8 +444,8 @@ data2 = OneHotEncoder(data2, Var=cateVar, combined=False)
 data2 = Center(data2, Var=data2.columns.values, excluded=False)
 data2 = data2.reset_index( drop = True)
 
-X_all_n = data2p.drop(['TotalredCardsRefFrac'], axis=1).values
-Y_all_n = data2p['TotalredCardsRefFrac'].values
+X_all_n = data2.drop(['TotalredCardsRefFrac'], axis=1).values
+Y_all_n = data2['TotalredCardsRefFrac'].values
 
 errLR2 = evaluateR(X=X_all_n,Y=Y_all_n,k=5,model=LinearRegression,n_trees=None,n_min=None,filename='LR_CV_lie.pkl')
 errRSF2 = evaluateR(X=X_all_n,Y=Y_all_n,k=5,model=RSFclassifier,n_trees=20,n_min=100,filename='RSF_CV_lie.pkl')
@@ -448,10 +453,10 @@ errRSF2 = evaluateR(X=X_all_n,Y=Y_all_n,k=5,model=RSFclassifier,n_trees=20,n_min
 pVar = ['skinCol']
 errPA2, errPB2 = [], []
 for _ in range(19):
-    data2 = Permutation(data2, Var=pVar)
+    data2p = Permutation(data2, Var=pVar)
 
-    Yp_all_n = data2['TotalredCardsRefFrac'].values
-    Xp_all_n = data2.drop(['TotalredCardsRefFrac'], axis=1).values
+    Yp_all_n = data2p['TotalredCardsRefFrac'].values
+    Xp_all_n = data2p.drop(['TotalredCardsRefFrac'], axis=1).values
 
     errTxA = evaluateR(X=Xp_all_n,Y=Yp_all_n,k=5,model=LinearRegression,n_trees=None,n_min=None,filename='cache.pkl')
     errTxB = evaluateR(X=Xp_all_n,Y=Yp_all_n,k=5,model=RSFclassifier,n_trees=20,n_min=100,filename='cache.pkl')
