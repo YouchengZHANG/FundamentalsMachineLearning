@@ -4,27 +4,18 @@
 # 1 Comment on your and other's solution to Exercise 4
 
 # 2 Red Cards Study
-# https://www.nature.com/news/%20crowdsourced-research-many-hands-make-tight-work-1.18508
-# https://osf.io/gvm2z/files/
-# https://osf.io/2prib/
-# https://nbviewer.jupyter.org/github/mathewzilla/redcard/blob/master/Crowdstorming_visualisation.ipynb
-# https://notebook.community/cmawer/pycon-2017-eda-tutorial/notebooks/1-RedCard-EDA/3-Redcard-Dyads
-# centering a variable is subtracting the mean of the variable from each data point so that the new variable’s mean is 0; scaling a variable is multiplying each data point by a constant in order to alter the range of the data.
-
 
 # 2.1 Loading and Cleaning the Data (10 points)
-from matplotlib import colors
 import pandas as pd                                    
 import numpy as np                             
 import os       
-import matplotlib.pyplot as plt               
+import matplotlib.pyplot as plt           
+import pickle    
 filename=os.path.join('CrowdstormingDataJuly1st.csv') 
 df0 = pd.read_csv(filename)
 df0.shape
 df0.head()
 df0.columns.values
-df0['games']
-np.unique(df0['games'])
 
 
 # What do the feature names (e.g. column games) stand for?
@@ -42,23 +33,20 @@ df.shape
 
 # What relevant features might be missing, but can be computed?
 # Race color: can be computed from rater1 and rater2
-# age: can be computed from birthday
 # the fraction of games where the player will receive a red card: can be computed
 # the fraction of games where the player will receive a red card by a specific referee: can be computed
-df['age'] = (pd.to_datetime('01.07.2014') - pd.to_datetime(df['birthday'], errors='coerce')).astype('<m8[Y]') 
 df['skinCol'] = (df['rater1'] + df['rater2']) / 2
-df['skinColDiff'] = df['rater1'] - df['rater2']
-df['semiredCards'] = df['yellowReds'] + df['redCards']
+df['TotalredCards'] = df['yellowReds'] + df['redCards']
 
-df['semiredCardsRefFrac'] = 0
-df['semiredCardsRefFrac'] = df['semiredCards'] / df['games']
+df['TotalredCardsRefFrac'] = 0
+df['TotalredCardsRefFrac'] = df['TotalredCards'] / df['games']
 
-df['semiredCardsFrac'] = 0
-players=pd.unique(df['playerShort'].values.ravel())
-for p in players:
-    Nr = np.sum(df[df['playerShort']==p]['semiredCards'])
-    N = len(df[df['playerShort']==p])
-    df['semiredCardsFrac'][df['playerShort']==p] = Nr / N
+#df['TotalredCardsFrac'] = 0
+#players=pd.unique(df['playerShort'].values.ravel())
+#for p in players:
+#    Nr = np.sum(df[df['playerShort']==p]['TotalredCards'])
+#    N = len(df[df['playerShort']==p])
+#    df['TotalredCardsFrac'][df['playerShort']==p] = Nr / N
 
 
 # Are there missing data values (e.g. missing skin color ratings), and how should they be dealt with?
@@ -72,6 +60,7 @@ df.shape
 # How good are the skin color ratings? Do the raters agree?
 # The two raters disagree about player skintone quite often (N_agree = 88365, N=27092). 
 # Besidesm censoring data in players photos also leads to missing color ratings.
+df['skinColDiff'] = df['rater1'] - df['rater2']
 ra = df['rater1'] == df['rater2']
 ra.value_counts()
 
@@ -84,7 +73,7 @@ plt.show()
 
 
 # Should referees with very few appearances be excluded from the dataset?
-# Yes. We first calculate the number of appearances of referees and number of referee dyads pair (refCount)
+# We first calculate the number of appearances of referees and number of referee dyads pair (refCount)
 df['refCount']=0
 refs=pd.unique(df['refNum'].values.ravel())
 #for each ref, count their dyads
@@ -99,6 +88,25 @@ ax[1].hist(df['refCount'].value_counts(),  bins = 40, color = np.random.rand(3,)
 ax[1].set_xlabel('number of referee dyads pair')
 ax[1].set_ylabel('frequency')
 plt.show()
+
+
+# Check the IAT and Exp statistics
+# When the population in a region nIAT and nExp lower than 10^3, 
+# meanIAT and meanExp have higher deviations than the countries with nIAT and nExp higher than 10^3.
+# Therefore, we remove the data with nIAT and nExp lower than 10^3
+fig, ax = plt.subplots(2,2, figsize=(8,6))
+c1, c2 = np.random.rand(3,), np.random.rand(3,)
+ax[0,0].hist( np.log10(df.drop_duplicates(subset=['nIAT'])['nIAT']) ,bins=30 ,color = c1)
+ax[0,0].set_title('log(nIAT)')
+ax[0,1].hist( np.log10(df.drop_duplicates(subset=['nExp'])['nExp']) ,bins=30 ,color = c2)
+ax[0,1].set_title('log(nExp)')
+ax[1,0].scatter(np.log10(df.drop_duplicates(subset=['nIAT'])['nIAT']), df.drop_duplicates(subset=['nIAT'])['meanIAT'], color = c1)
+ax[1,0].set_title('MeanIAT ~ log(nIAT)')
+ax[1,1].scatter(np.log10(df.drop_duplicates(subset=['nExp'])['nExp']), df.drop_duplicates(subset=['nExp'])['meanExp'], color = c2)
+ax[1,1].set_title('MeanExp ~ log(nExp)')
+plt.show()
+
+df = df[(df['nIAT'] > 10**3) | (df['nExp'] > 10**3)]
 
 
 # Should features be normalized and/or centralized?
@@ -120,9 +128,6 @@ def OneHotEncoder(df, Var, combined):
 
     return df
 
-cateVar = ['club', 'leagueCountry', 'position', 'refCountry']
-df = OneHotEncoder(df, Var=cateVar, combined=False)
-
 # Centering data
 def Center(df, Var, excluded=True):
 
@@ -137,73 +142,17 @@ def Center(df, Var, excluded=True):
 
     return df
 
-exVar = ["playerShort","semiredCards","semiredCardsFrac", "semiredCardsRefFrac"]
-df = Center(df, Var=exVar, excluded=True)
-
-# Disaggregater data (optional?, not neccesary in our case)
-def Disaggregater(df):
-    df['refCount']=0
-
-    #add a column which tracks how many games each ref is involved in
-    refs=pd.unique(df['refNum'].values.ravel()) #list all unique ref IDs
-
-    #for each ref, count their dyads
-    for r in refs:
-        df['refCount'][df['refNum']==r]=len(df[df['refNum']==r])    
-
-    colnames=list(df.columns)
-
-    j = 0
-    out = [0 for _ in range(sum(df['games']))]
-
-    for _, row in df.iterrows():
-            n = row['games']
-            #d =  row['redCards']       # row['allreds']
-            c =  row['semiredCards']   # row['allredsStrict']
-            
-            #row['games'] = 1        
-            
-            for _ in range(n):
-                row['semiredCards'] = 1 if (c-_) > 0 else 0
-                #row['redCards'] = 1 if (d-_) > 0 else 0
-                rowlist=list(row)  #convert from pandas Series to prevent overwriting previous values of out[j]
-                out[j] = rowlist
-                j += 1
-                if j%1000==0:    
-                    print("Number " + str(j) + " of " + str(df.shape[0]))
-
-    dfout = pd.DataFrame(out, columns=colnames)
-    
-    return dfout
-
-df = Disaggregater(df)
-df.shape
-df.head()
+data = df[['TotalredCardsRefFrac','skinCol','club','leagueCountry','height','weight','position','games','refCountry','meanIAT','meanExp']]
+cateVar = ['club', 'leagueCountry', 'position', 'refCountry']
+data = OneHotEncoder(data, Var=cateVar, combined=False)
+data = Center(data, Var=data.columns.values, excluded=False)
+data = data.reset_index( drop = True)
 
 
-# Check the IAT and Exp statistics
-# When the population in a region nIAT and nExp lower than 10^3, 
-# meanIAT and meanExp have higher deviations than the countries with nIAT and nExp higher than 10^3.
-# Therefore, we remove the data with nIAT and nExp lower than 10^3
-fig, ax = plt.subplots(2,2, figsize=(8,6))
-c1, c2 = np.random.rand(3,), np.random.rand(3,)
-ax[0,0].hist( np.log10(df.drop_duplicates(subset=['nIAT'])['nIAT']) ,bins=30 ,color = c1)
-ax[0,0].set_title('log(nIAT)')
-ax[0,1].hist( np.log10(df.drop_duplicates(subset=['nExp'])['nExp']) ,bins=30 ,color = c2)
-ax[0,1].set_title('log(nExp)')
-ax[1,0].scatter(np.log10(df.drop_duplicates(subset=['nIAT'])['nIAT']), df.drop_duplicates(subset=['nIAT'])['meanIAT'], color = c1)
-ax[1,0].set_title('MeanIAT ~ log(nIAT)')
-ax[1,1].scatter(np.log10(df.drop_duplicates(subset=['nExp'])['nExp']), df.drop_duplicates(subset=['nExp'])['meanExp'], color = c2)
-ax[1,1].set_title('MeanExp ~ log(nExp)')
-plt.show()
-
-
-# Finally, Clean-up data and unwanted variables
-df = df[(df['nIAT'] > 10**3) | (df['nExp'] > 10**3)]
-cleanVar = ['yellowReds','redCards','rater1','rater2','nIAT', 'nExp', 'seIAT', 'seExp']
-df = df.drop(cleanVar, axis=1)
-
-
+X_all = data.drop(['TotalredCardsRefFrac'], axis=1).values
+X_all.shape
+Y_all = data['TotalredCardsRefFrac'].values
+Y_all.shape
 
 
 # 2.2 Model Creation (8 points)
@@ -213,17 +162,11 @@ class LinearRegression:
         self.beta = None
 
     def train(self, data, labels):
-        # beta = V * (B.T*B)^-1 * B.T * U.T * y
-        pass
+        self.beta, _, _, _ = np.linalg.lstsq(data, labels, rcond=None)
 
     def predict(self, x):
-        self.response = np.dot(x, self.beta)
+        self.response = np.dot(x, self.beta.T)
         return self.response   # the predicted fraction of a player receives red cards in total games he has played
-
-
-
-
-
 
 
 # Regression Tree and Regression Forest
@@ -377,23 +320,32 @@ class RegressionForest():
         return p
 
 
-n_trees = 5
-def RSFclassifier(X_train,Y_train,X_test,Y_test,n_trees,return_error):
+
+def RSFclassifier(X_train,Y_train,X_test,Y_test,n_trees,n_min,return_error):
 
     DCFclassifier = RegressionForest(n_trees=n_trees) 
-    DCFclassifier.train(data=X_train,labels=Y_train,n_min=0)
+    DCFclassifier.train(data=X_train,labels=Y_train,n_min=n_min)
 
     y_test = [DCFclassifier.predict(X_test[i,:]) for i in range(len(X_test))]
-    y_test = np.array(y_test).reshape([len(X_test),len(set(Y_train))])
-    y_test = np.argmax(y_test, axis=1)
 
     if return_error == True:
-        err =  np.sum((Y_test - y_test) ** 2)           #(len(Y_test) - np.sum(y_test == Y_test)) / len(Y_test)
+        err =  np.mean((Y_test - y_test) ** 2)           #(len(Y_test) - np.sum(y_test == Y_test)) / len(Y_test)
         return y_test, err
     else:
         return y_test
 
-yRSF, errRSF = RSFclassifier(X_train,Y_train,X_test,Y_test,n_trees=5,return_error=True)
+def LRclassifier(X_train,Y_train,X_test,Y_test,return_error):
+
+    LRclassifier = LinearRegression() 
+    LRclassifier.train(data=X_train,labels=Y_train)
+
+    y_test = [LRclassifier.predict(X_test[i,:]) for i in range(len(X_test))]
+
+    if return_error == True:
+        err =  np.mean((Y_test - y_test) ** 2)           #(len(Y_test) - np.sum(y_test == Y_test)) / len(Y_test)
+        return y_test, err
+    else:
+        return y_test
 
 
 
@@ -402,7 +354,7 @@ yRSF, errRSF = RSFclassifier(X_train,Y_train,X_test,Y_test,n_trees=5,return_erro
 from sklearn.model_selection import KFold
 import pandas as pd
 
-def evaluateR(X,Y,k,model,n_trees):
+def evaluateR(X,Y,k,model,n_trees,n_min, filename):
     cv = KFold(n_splits=k, shuffle=True)
     errTx = []
     for train_ind, test_ind in cv.split(Y):
@@ -412,26 +364,32 @@ def evaluateR(X,Y,k,model,n_trees):
         #print(np.take(Y_sub,train_index), np.take(Y_sub,test_index))
 
         if model == LinearRegression:
-            pass
+            yLR, errLR = LRclassifier(X_train,Y_train,X_test,Y_test,return_error=True)
+            errT = errLR
+            errTx = np.append(errTx, errT)
 
         elif model == RSFclassifier:
-            yRSF, errRSF = RSFclassifier(X_train,Y_train,X_test,Y_test,n_trees=n_trees,return_error=True)
+            yRSF, errRSF = RSFclassifier(X_train,Y_train,X_test,Y_test,n_trees=n_trees,n_min=n_min,return_error=True)
             errT = errRSF
-        
-        errTx = np.append(errTx, errT)
+            errTx = np.append(errTx, errT)
 
+    # Error 
     df = pd.DataFrame({'Test error':errTx})
 
-    print(df)
+    # Store output
+    filename = filename
+    pickle.dump(df, open(filename, 'wb'))
+
+    # Mean Error and Std
     df = pd.DataFrame({'Test error Mean':[np.mean(errTx)],
                         'Test error Std':[np.std(errTx)] })
     print(df)
 
     return np.mean(errTx)
 
-evaluateR(X,Y,k=10,model=LinearRegression)
-evaluateR(X,Y,k=10,model=RSFclassifier)
 
+errLR = evaluateR(X=X_all,Y=Y_all,k=5,model=LinearRegression,n_trees=None,n_min=None,filename='LR_CV.pkl')
+errRSF = evaluateR(X=X_all,Y=Y_all,k=5,model=RSFclassifier,n_trees=20,n_min=100,filename='RSF_CV.pkl')
 
 
 # 2.3 Answering the Research Question (6 points)
@@ -440,28 +398,66 @@ evaluateR(X,Y,k=10,model=RSFclassifier)
 
 def Permutation(df, Var):
     for v in Var:
-        df[v] = np.random.shuffle(df[v])
+        df[v] = np.random.permutation(df[v])
     return df
 
 pVar = ['skinCol']
 errPA, errPB = [], []
 for _ in range(19):
-    dfp = Permutation(df, Var=pVar)
-    errTxA = evaluateR(X,Y,k=10,model=LinearRegression)
-    errTxB = evaluateR(X,Y,k=10,model=RSFclassifier,n_trees=10)
+    datap = Permutation(datap, Var=pVar)
+
+    Yp_all = datap['TotalredCardsRefFrac'].values
+    Xp_all = datap.drop(['TotalredCardsRefFrac'], axis=1).values
+
+    errTxA = evaluateR(X=Xp_all,Y=Yp_all,k=5,model=LinearRegression,n_trees=None,n_min=None,filename='cache.pkl')
+    errTxB = evaluateR(X=Xp_all,Y=Yp_all,k=5,model=RSFclassifier,n_trees=20,n_min=100,filename='cache.pkl')
     errPA, errPB = np.append(errPA, errTxA), np.append(errPB, errTxB)
+
+# Store permutation output
+filename = 'LR_PT.pkl'
+pickle.dump(errPA, open(filename, 'wb'))
+filename = 'RSF_PT.pkl'
+pickle.dump(errPB, open(filename, 'wb'))
 
 errPA
 errPB
 
 
 # 2.4 How to lie with statistics (6 points)
-# Team 6: un-significant, control Height, Weight, Age
-# Team 14: significant, control Position, Height, Weight, Age, Referee
+# Remove position variables and Repreprocess the data and 
 
+data2 = df[['TotalredCardsRefFrac','skinCol','club','leagueCountry','height','weight','games','refCountry','meanIAT','meanExp']]
+cateVar = ['club', 'leagueCountry', 'refCountry']
+data2 = OneHotEncoder(data2, Var=cateVar, combined=False)
+data2 = Center(data2, Var=data2.columns.values, excluded=False)
+data2 = data2.reset_index( drop = True)
 
+X_all_n = data2p.drop(['TotalredCardsRefFrac'], axis=1).values
+Y_all_n = data2p['TotalredCardsRefFrac'].values
 
+errLR2 = evaluateR(X=X_all_n,Y=Y_all_n,k=5,model=LinearRegression,n_trees=None,n_min=None,filename='LR_CV_lie.pkl')
+errRS2 = evaluateR(X=X_all_n,Y=Y_all_n,k=5,model=RSFclassifier,n_trees=20,n_min=100,filename='RSF_CV_lie.pkl')
 
+pVar = ['skinCol']
+errPA2, errPB2 = [], []
+for _ in range(19):
+    data2 = Permutation(data2, Var=pVar)
+
+    Yp_all_n = data2['TotalredCardsRefFrac'].values
+    Xp_all_n = data2.drop(['TotalredCardsRefFrac'], axis=1).values
+
+    errTxA = evaluateR(X=Xp_all_n,Y=Yp_all_n,k=5,model=LinearRegression,n_trees=None,n_min=None,filename='cache.pkl')
+    errTxB = evaluateR(X=Xp_all_n,Y=Yp_all_n,k=5,model=RSFclassifier,n_trees=20,n_min=100,filename='cache.pkl')
+    errPA2, errPB2 = np.append(errPA2, errTxA), np.append(errPB2, errTxB)
+
+# Store permutation output
+filename = 'LR_PT_lie.pkl'
+pickle.dump(errPA2, open(filename, 'wb'))
+filename = 'RSF_PT_lie.pkl'
+pickle.dump(errPB2, open(filename, 'wb'))
+
+errPA2
+errPB2
 
 
 
@@ -469,7 +465,7 @@ errPB
 # hypotheses 01:  dark colored players tends to play in those positions 
 # which have higher chances among all the same colored players to receive RedCards
 
-h1 = df[['playerShort','skinCol','position','semiredCards']]
+h1 = df[['playerShort','skinCol','position','TotalredCards']]
 
 h1['PosRedsCount'] = 0
 
@@ -480,7 +476,7 @@ for v in Var:
 
 pos = pd.unique(h1['position'].values.ravel())
 for p in pos:
-    Nr = np.sum(h1[h1['position']==p]['semiredCards'])
+    Nr = np.sum(h1[h1['position']==p]['TotalredCards'])
     h1['PosRedsCount'][h1['position']==p] = Nr
 
     h1 = h1.drop_duplicates(subset=['playerShort'])
@@ -514,13 +510,13 @@ plt.show()
 
 # hypotheses 02:  
 # referees discriminate against young players /# referees discriminate against countries/leagure players
-h2 = df[['playerShort','skinCol','semiredCards']]
+h2 = df[['playerShort','skinCol','TotalredCards']]
 h2['age'] = (pd.to_datetime('01.07.2014') - pd.to_datetime(df0['birthday'], errors='coerce')).astype('<m8[Y]') 
 
 h2['PlayerRedsCount'] = 0
 player = pd.unique(h2['playerShort'].values.ravel())
 for p in player:
-    Nr = np.sum(h2[h2['playerShort']==p]['semiredCards'])
+    Nr = np.sum(h2[h2['playerShort']==p]['TotalredCards'])
     h2['PlayerRedsCount'][h2['playerShort']==p] = Nr
 h2 = h2.drop_duplicates(subset=['playerShort'])
 h2 = h2.dropna()
@@ -566,7 +562,7 @@ len(np.unique(df['playerShort']))
 #tmp = df.iloc[1:10,:]
 
 df.columns.values
-other = [e for e in df.columns.values if e not in ['games','semiredCards','refNum','playerShort']]
+other = [e for e in df.columns.values if e not in ['games','TotalredCards','refNum','playerShort']]
 
 
 
