@@ -192,7 +192,7 @@ class RegressionTree(Tree):
     def __init__(self):
         super(RegressionTree, self).__init__()
         
-    def train(self, data, labels, n_min=20):
+    def train(self, data, labels, n_min):
         '''
         data: the feature matrix for all digits
         labels: the corresponding ground-truth responses
@@ -215,9 +215,15 @@ class RegressionTree(Tree):
                 # and returns the two children, which must be placed on the 'stack'.
 
                 valid_features = np.where(np.min(node.data, axis=0) != np.max(node.data, axis=0))[0]
-                feature_indices = np.random.choice(valid_features, size=D_try, replace=False)
-                left, right = make_decision_split_node(node=node, feature_indices=feature_indices)
-                stack.extend([left,right])
+
+                if len(valid_features) > 0:
+
+                    feature_indices = np.random.permutation(valid_features)[:D_try]
+                    left, right = make_decision_split_node(node=node, feature_indices=feature_indices)
+                    stack.extend([left,right])
+
+                else:
+                    make_decision_leaf_node(node=node,minlength=len(set(labels)))
 
             else:
                 # Call 'make_decision_leaf_node()' to turn 'node' into a leaf node.
@@ -390,7 +396,7 @@ def evaluateR(X,Y,k,model,n_trees,n_min, filename):
 
 errLR = evaluateR(X=X_all,Y=Y_all,k=5,model=LinearRegression,n_trees=None,n_min=None,filename='LR_CV.pkl')
 
-errRSF = evaluateR(X=X_all,Y=Y_all,k=5,model=RSFclassifier,n_trees=20,n_min=100,filename='RSF_CV.pkl')
+errRSF = evaluateR(X=X_all,Y=Y_all,k=5,model=RSFclassifier,n_trees=5,n_min=100,filename='RSF_CV.pkl')
 
 
 # 2.3 Answering the Research Question (6 points)
