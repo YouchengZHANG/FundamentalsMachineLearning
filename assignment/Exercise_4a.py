@@ -389,6 +389,7 @@ def evaluateR(X,Y,k,model,n_trees,n_min, filename):
 
 
 errLR = evaluateR(X=X_all,Y=Y_all,k=5,model=LinearRegression,n_trees=None,n_min=None,filename='LR_CV.pkl')
+
 errRSF = evaluateR(X=X_all,Y=Y_all,k=5,model=RSFclassifier,n_trees=20,n_min=100,filename='RSF_CV.pkl')
 
 
@@ -436,7 +437,7 @@ X_all_n = data2p.drop(['TotalredCardsRefFrac'], axis=1).values
 Y_all_n = data2p['TotalredCardsRefFrac'].values
 
 errLR2 = evaluateR(X=X_all_n,Y=Y_all_n,k=5,model=LinearRegression,n_trees=None,n_min=None,filename='LR_CV_lie.pkl')
-errRS2 = evaluateR(X=X_all_n,Y=Y_all_n,k=5,model=RSFclassifier,n_trees=20,n_min=100,filename='RSF_CV_lie.pkl')
+errRSF2 = evaluateR(X=X_all_n,Y=Y_all_n,k=5,model=RSFclassifier,n_trees=20,n_min=100,filename='RSF_CV_lie.pkl')
 
 pVar = ['skinCol']
 errPA2, errPB2 = [], []
