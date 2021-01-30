@@ -108,9 +108,37 @@ plt.show()
 
 # 5 Minimizing the radiation dose (9 points)
 
+Y_77 = np.load("hs_tomography/y_77.npy")
+alphas_77 = np.load("hs_tomography/alphas_77.npy")
+
+reduce_magnitute = [2,3,4,5,6,10,12,15,40,45]
+m = 45
+for m in reduce_magnitute:
+    sub_ind = np.append(np.arange(0,45,m),np.arange(45,90,m))
+
+    alphas_sub_77 = alphas_77[sub_ind]
+    print("The number of reduced angles: ",len(alphas_sub_77))
+    Np = 109
+    Xsub_77 = construct_X(77, alphas_sub_77, Np)
+    beta_77 = lsqr(Xsub_77, Y_77, atol = 1e-05, btol = 1e-05)
+
+    img_77 = beta_77[0].reshape(77,77)
+    plt.figure()
+    plt.imshow(img_77, interpolation = "none")
+    plt.show()
 
 
 
+Xsub_77.shape
 
+Ysub_77 = np.zeros((len(sub_ind)*Np))
+
+
+for i in sub_ind:
+    Ysub_77[Np * sub_ind : Np * sub_ind + 1] = Y_77[Np]
+
+
+
+sub_ind
 
 
