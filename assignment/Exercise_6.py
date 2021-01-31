@@ -241,7 +241,7 @@ for i in range(0,solutions.shape[1],3):
         plt.annotate(str(A[i]), xy=(x, y),xytext=(x-0.20, y+0.18), c="white", weight="bold")
         plt.scatter(x, y, s=500, c='green', marker="^")
     elif solutions[A[i],i] < 0:
-        plt.annotate(str(A[i]), xy=(x, y),xytext=(x-0.20, y+0.15), c="white", weight="bold")
+        plt.annotate(str(A[i]), xy=(x, y),xytext=(x-0.20, y+0.12), c="white", weight="bold")
         plt.scatter(x, y, s=500, c='salmon', marker="v")
 
 plt.show()
@@ -253,6 +253,7 @@ plt.show()
 
 from sklearn.datasets import load_digits
 from sklearn import model_selection
+import pandas as pd
 
 digits = load_digits()
 data = digits["data"]
@@ -261,73 +262,56 @@ target = digits["target"]
 X_train , X_test , Y_train , Y_test = model_selection.train_test_split(data, target,test_size = 0.4)
 
 
+class OvR:
+    def __init__(self):
+        pass
+
+    def fit(self, X_train, Y_train):
+
+        beta = np.zeros((X_train.shape[1],))  
+
+        for d in set(Y_train):
+            print("Train OvRclassifier for ",str(d))
+            X_one = X_train[Y_train == d]
+            Y_one = np.array([1] * len(X_one))
+
+            ind = np.random.choice(len(Y_train)-len(Y_one), len(Y_one))
+            X_rest = X_train[Y_train != d][ind,:]
+            Y_rest = np.array([-1] * len(X_rest))
+            
+            X_aux = np.vstack((X_one, X_rest))
+            Y_aux = np.hstack((Y_one, Y_rest))
+            solutions = omp_regression(X=X_aux, y=Y_aux, T=60)[:,-1]
+
+            beta = np.vstack((beta,solutions))
+
+        self.beta = beta[1:,:].T
+        return self.beta
+    
+    def predict(self, X_test):
+
+        y_test = np.dot(X_test, self.beta)
+        un = np.all(y_test < 0, axis=1)
+        y_test = np.argmax(y_test, axis=1)
+        y_test[un] = 99
+        
+        return y_test
+
+
+    def evalute(self, y_test, Y_test):
+        df = pd.DataFrame({'True': Y_test, 'Predicted':y_test}) 
+        cm = pd.crosstab(df['True'], df['Predicted'], rownames=['Real'], colnames=['Predicted'])
+
+        return cm
+
+
+ovr = OvR()
+ovr.fit(X_train, Y_train)
+y_test = ovr.predict(X_test)
+cm = ovr.evalute(y_test, Y_test)
+
+print(cm)
 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-####################################
-
-
-X = np.random.randint(0,20,800).reshape(20,40)
-B = np.arange(0,40)
-Bx = B[:5]
-X[:,[0,1,10,15]]
-y = np.random.randint(0,100,20).reshape(20,)
-r = y
-jt = np.argmax(np.dot(X[:,B].T, r))
-
-A = []
-A.append(jt)
-B = B[B != jt]
-
-beta = lsqr(X[:,A], y, atol = 1e-04, btol = 1e-04)[0]
-r = y - np.dot(X[:,A],beta)
-
-
-H = np.zeros((X.shape[1]))      #np.empty([40,],dtype=np.float32)
-h = np.zeros((X.shape[1]))
-h.shape
-H.shape
-h[A,] = beta
-
-H = np.vstack((H,h))
-H
-
-
-h2 = np.zeros((X.shape[1],))
-h2[[0],] = beta
-np.concatenate((H,h2), axis=0)
-
-
-
-solutions = omp_regression(X, y, T)
-
-
-
-###################
-    Np = 109
-    Ysub_77 = np.zeros((len(sub_ind)*Np))
-    for i in range(len(sub_ind)):
-        Ysub_77[Np * i : Np * (i+1)] = Y_77[Np * sub_ind[i] : Np * (sub_ind[i] + 1)]
-
-    Xsub_77 = construct_X(77, alphas_sub_77, Np)
-    betasub_77 = lsqr(Xsub_77, Ysub_77, atol = 1e-05, btol = 1e-05)
