@@ -8,6 +8,7 @@
 
 # 3 Denoising of a CT image (11 points)
 
+from matplotlib import colors
 import numpy as np
 from scipy import sparse
 from scipy.sparse.linalg import lsqr
@@ -138,8 +139,8 @@ def omp_regression(X, y, T):
 
     while len(A) <= T:
         jt = np.argmax(np.dot(X[:,B].T, r))
-        A.append(jt)
-        B = B[B != jt]
+        A.append(B[jt])
+        B = B[B != B[jt]]
 
         beta = lsqr(X[:,A], y, atol = 1e-04, btol = 1e-04)[0]
         h = np.zeros((X.shape[1],))
@@ -177,8 +178,89 @@ X_sub = data[ (target== 1)|(target== 7) , : ]
 Y_sub = target[ (target== 1)|(target== 7) ]
 Y_sub[Y_sub==7] = -1
 
+X_train , X_test , Y_train , Y_test = model_selection.train_test_split(X_sub, Y_sub,test_size = 0.4)
 
-solutions = omp_regression(X=X_sub, y=Y_sub, T=64)
+def OMPclassifier(X_train, Y_train, X_test, Y_test, T):
+
+    # X: X ∈ RN×D
+    # y: y ∈ RN 
+    # T > 0
+    # beta^: D × T matrix, where D the initial number of features, T the number of iterations
+    X = X_train
+    y = Y_train
+
+    A = []
+    B = np.arange(0, X.shape[1])
+    r = y
+    H = np.zeros((X.shape[1],))  
+    errO = []
+
+    while len(A) < T:
+        jt = np.argmax(np.dot(X[:,B].T, r))
+        A.append(B[jt])
+        B = B[B != B[jt]]
+
+        beta = lsqr(X[:,A], y, atol = 1e-04, btol = 1e-04)[0]
+        h = np.zeros((X.shape[1],))
+        h[A,] = beta
+
+        H = np.vstack((H,h))
+        r = y - np.dot(X[:,A], beta)
+
+        y_test = np.dot(X_test[:,A], beta)
+        errO.append( np.mean((Y_test - y_test)**2) )
+
+    H = H[1:,:]
+    return H.T, errO, A
+
+T = 60
+solutions, errO, A  = OMPclassifier(X_train, Y_train, X_test, Y_test, T)
+print(solutions.shape)
+
+sB = solutions.copy()
+sB[sB!=0] = 1
+
+fig, ax = plt.subplots(1,2, figsize=(9,5))
+ax = ax.reshape(1,-1)
+ax[0][0].plot(np.arange(1,T+1),errO, label = "Mean square error", c='black',alpha=0.8)
+ax[0][1].imshow(sB,cmap='hot',interpolation='nearest',alpha=0.8)
+ax[0][1].set(xticks=np.arange(1,T+1),yticks=np.arange(0,64))
+fig.tight_layout()
+plt.show
+
+
+# Show the active pixel order
+X_mean1 = np.mean(X_sub[Y_sub == 1], axis=0).reshape(8,8)
+plt.figure()
+plt.imshow(X_mean1,interpolation='nearest',alpha=0.8)
+plt.gray()
+Coo = np.arange(0,64).reshape(8,8)
+for i in range(0,solutions.shape[1],3):
+    y, x = np.where(Coo==A[i])
+    if solutions[A[i],i] > 0:
+        plt.annotate(str(A[i]), xy=(x, y),xytext=(x-0.20, y+0.18), c="white", weight="bold")
+        plt.scatter(x, y, s=500, c='green', marker="^")
+    elif solutions[A[i],i] < 0:
+        plt.annotate(str(A[i]), xy=(x, y),xytext=(x-0.20, y+0.15), c="white", weight="bold")
+        plt.scatter(x, y, s=500, c='salmon', marker="v")
+
+plt.show()
+
+
+
+
+# 4.3 One-against-the-rest classi􏰃cation (8 points)
+
+from sklearn.datasets import load_digits
+from sklearn import model_selection
+
+digits = load_digits()
+data = digits["data"]
+target = digits["target"]
+
+X_train , X_test , Y_train , Y_test = model_selection.train_test_split(data, target,test_size = 0.4)
+
+
 
 
 
