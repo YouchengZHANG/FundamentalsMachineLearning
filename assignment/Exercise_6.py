@@ -6,8 +6,6 @@
 # 2 Bias and variance of ridge regression (8 points)
 
 
-
-
 # 3 Denoising of a CT image (11 points)
 
 import numpy as np
@@ -122,19 +120,124 @@ plt.show()
 
 # 4 Automatic feature selection for regression
 # 4.1 Implement Orthogonal Matching Pursuit (5 points)
+# http://users.ece.utexas.edu/~sanghavi/courses/scribed_notes/Lecture_21_Scribe_Notes.pdf
+# https://angms.science/doc/RM/OMP.pdf
+
 
 def omp_regression(X, y, T):
-    A = []
-    r = y
 
+    # X: X ∈ RN×D
+    # y: y ∈ RN 
+    # T > 0
+    # beta^: D × T matrix, where D the initial number of features, T the number of iterations
+
+    A = []
+    B = np.arange(0, X.shape[1])
+    r = y
+    H = np.zeros((X.shape[1],))  
+
+    while len(A) <= T:
+        jt = np.argmax(np.dot(X[:,B].T, r))
+        A.append(jt)
+        B = B[B != jt]
+
+        beta = lsqr(X[:,A], y, atol = 1e-04, btol = 1e-04)[0]
+        h = np.zeros((X.shape[1],))
+        h[A,] = beta
+
+        H = np.vstack((H,h))
+        r = y - np.dot(X[:,A], beta)
+
+    H = H[1:,:]
+    return H.T
+
+
+X = np.random.randint(0,20,200).reshape(20,10)
+y = np.random.randint(0,100,20).reshape(20,)
+T = 4
+solutions = omp_regression(X, y, T)
+print(solutions.shape)
+solutions
+
+
+# 4.2 Classi􏰃cation with sparse LDA (8 points)
+
+from sklearn.datasets import load_digits
+from sklearn import model_selection
+
+digits = load_digits()
+print(digits.keys())
+
+data = digits["data"]
+images = digits["images"]
+target = digits["target"]
+target_names = digits["target_names"]
+
+X_sub = data[ (target== 1)|(target== 7) , : ]
+Y_sub = target[ (target== 1)|(target== 7) ]
+Y_sub[Y_sub==7] = -1
+
+
+solutions = omp_regression(X=X_sub, y=Y_sub, T=64)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+####################################
+
+
+X = np.random.randint(0,20,800).reshape(20,40)
+B = np.arange(0,40)
+Bx = B[:5]
+X[:,[0,1,10,15]]
+y = np.random.randint(0,100,20).reshape(20,)
+r = y
+jt = np.argmax(np.dot(X[:,B].T, r))
+
+A = []
+A.append(jt)
+B = B[B != jt]
+
+beta = lsqr(X[:,A], y, atol = 1e-04, btol = 1e-04)[0]
+r = y - np.dot(X[:,A],beta)
+
+
+H = np.zeros((X.shape[1]))      #np.empty([40,],dtype=np.float32)
+h = np.zeros((X.shape[1]))
+h.shape
+H.shape
+h[A,] = beta
+
+H = np.vstack((H,h))
+H
+
+
+h2 = np.zeros((X.shape[1],))
+h2[[0],] = beta
+np.concatenate((H,h2), axis=0)
 
 
 
 solutions = omp_regression(X, y, T)
-
-
-
-
 
 
 
