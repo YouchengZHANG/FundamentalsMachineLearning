@@ -75,11 +75,10 @@ YS_195 = np.zeros((len(ind) * Np + M*M))
 for i in range(len(ind)):
     YS_195[Np * i : Np * (i+1)] = Y_195[Np * ind[i] : Np * (ind[i] + 1)] 
 
-
 print("The number of reduced angles: ",len(alphasS_195))
 print("The length of Y: ",len(YS_195))
 
-tauL = [0,1,10]
+tauL = [1,10,100,1000,10000]
 fig, ax = plt.subplots(2,3)
 ax = ax.reshape(1,-1)
 
@@ -107,7 +106,7 @@ XS_195 = construct_X(195, alphasS_195, Np, tau=0)
 betaS_195 = lsqr(XS_195, YS_195, atol = 1e-04, btol = 1e-04)
 imgS_195 = betaS_195[0].reshape(195,195)
 
-sigmaL = [0,1,2,3,5,7]
+sigmaL = [1,2,3,5,7]
 fig, ax = plt.subplots(2,3)
 ax = ax.reshape(1,-1)
 
@@ -117,6 +116,7 @@ for s in range(len(sigmaL)):
     ax[0][s].imshow(imgG_195, interpolation = "none")
 
 plt.show()
+
 
 
 # 4 Automatic feature selection for regression
