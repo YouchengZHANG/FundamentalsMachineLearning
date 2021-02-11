@@ -4,7 +4,6 @@
 # 1 Comment on your and other's solution to Exercise 6
 
 # 2 Proof - Ridge Regression - Primal vs Dual (10 Points)
-
 # First, in the primal formulation
 # beta^ = (X.T * X + tau * I)^-1 * X.T * y
 # Perfrom SVD on X, X = UAV.T, and X.T = VA.TU.T
@@ -20,73 +19,32 @@
 # For the same problem beta^ = beta_
 # beta_ = beta^ = 1/tau * X.T * a_ = X.T * (X*X.T + tau*I)^-1 * y = (X.T * X + tau * I)^-1 * X.T * y 
 # given a^ = (X*X.T + tau*I)^-1 * y = 1/tau * a_
-
 # Therefore, beta^ = X.T * a^
 
 
 # 3 Kernelized (Ridge) Regression (10 Points)
-from matplotlib import colors
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy.sparse.linalg import spsolve
 # import cv2  # opencv
 
-import matplotlib.pyplot as plt
 X = plt.imread("cc_90.png")
-plt.figure(figsize=(15,10))
+plt.figure(figsize=(10,7.5))
+plt.gray()
 plt.imshow(X)
-
-plt.figure(figsize=(15,10))
-plt.imshow(X[0:150,0:150])
-print(X.shape)
-
-X = X[0:150,0:150]
-
+plt.show()
 
 class IKRR:
     def __init__(self, X):
-        print("Initialize ImageKRR ...")
-        print("Image size: ", X.shape)
-        print("Preparing training and test/missing data ... ")
+        #print("Initialize ImageKRR ...")
+        #print("Image size: ", X.shape)
+        #print("Preparing training and test/missing data ... ")
         self.X = X
         C0, C1 = np.mgrid[0:X.shape[0], 0:X.shape[1]]
         self.X_train = np.stack((C0[ X != 0 ], C1[ X != 0 ])).T
         self.X_test = np.stack((C0[ X == 0 ], C1[ X == 0 ])).T
         self.Y_train = X[ X != 0 ]
-        print("Missing data: ", len(X[ X == 0 ]))
-
-    
-    def train(self, s, tau, center, thres, kernel, method):
-
-        X_train = self.X_train - self.X_train.mean(axis=0) if center else self.X_train 
-        Y_train = self.Y_train - self.Y_train.mean() if center else self.Y_train
-
-        if method == "Ridge":
-            G = Kernel(X1=X_train, X2=X_train, s=s, thres=thres, kernel=kernel)
-            G = G + ( np.ones(G.shape[0]) * tau ) if tau else G
-            self.a = spsolve(A=G, b=Y_train)
-            return self.a
-
-        elif method == "NM":
-            pass
-
-    def predict(self, s, center, thres, kernel, method):
-
-        X_train = self.X_train - self.X_train.mean(axis=0) if center else self.X_train
-        X_test = self.X_test - self.X_test.mean(axis=0) if center else self.X_test
-        Y_train = self.Y_train - self.Y_train.mean() if center else self.Y_train
-   
-        if method == "Ridge":
-            k = Kernel(X1=X_test, X2=X_train, s=s, thres=thres, kernel=kernel)
-            self.y_test = np.dot(k, self.a)
-            #self.y_test = self.y_test  + self.Y_train.mean()
-
-        elif method == "NM":
-            pass
-            #k = Kernel(X1=X_test, X2=X_train, s=s, thres=thres, kernel="exp")
-            #np.dot(k, Y_train) 
-
-        return self.y_test
-
+        #print("Missing data: ", len(X[ X == 0 ]))
 
     def Kernel(self, X1, X2, s, thres, kernel):
         # Eud dis with multiple dimension array: 
@@ -101,6 +59,38 @@ class IKRR:
     
         return K
 
+    def train(self, s, tau, center, thres, kernel, method):
+
+        X_train = self.X_train - self.X_train.mean(axis=0) if center else self.X_train 
+        Y_train = self.Y_train - self.Y_train.mean() if center else self.Y_train
+
+        if method == "Ridge":
+            G = self.Kernel(X1=X_train, X2=X_train, s=s, thres=thres, kernel=kernel)
+            G = G + ( np.ones(G.shape[0]) * tau ) if tau else G
+            self.a = spsolve(A=G, b=Y_train)
+            return self.a
+
+        elif method == "NM":
+            pass
+
+    def predict(self, s, center, thres, kernel, method):
+
+        X_train = self.X_train - self.X_train.mean(axis=0) if center else self.X_train
+        X_test = self.X_test - self.X_test.mean(axis=0) if center else self.X_test
+        Y_train = self.Y_train - self.Y_train.mean() if center else self.Y_train
+   
+        if method == "Ridge":
+            k = self.Kernel(X1=X_test, X2=X_train, s=s, thres=thres, kernel=kernel)
+            self.y_test = np.dot(k, self.a)
+            #self.y_test = self.y_test  + self.Y_train.mean()
+
+        elif method == "NM":
+            pass
+            #k = Kernel(X1=X_test, X2=X_train, s=s, thres=thres, kernel="exp")
+            #np.dot(k, Y_train) 
+
+        return self.y_test
+
     def Recon(self, plot):
         self.Xnew = self.X.copy()
         self.Xnew[self.X_test[:,0], self.X_test[:,1]] = self.y_test
@@ -114,13 +104,29 @@ class IKRR:
         else:
             return self.Xnew
 
-
-ImgR = IKRR(X)
+# Test IKRR
+Xs = X[30:150,30:150]
+ImgR = IKRR(Xs)
 Ia = ImgR.train(s=1, tau=1, center=False, thres=0.1, kernel="exp", method="Ridge")
 Iy = ImgR.predict(s=1, center=False, thres=0.1, kernel="exp", method = "Ridge")
 ImgR.Recon(plot=True)
 
-
+# Tune IKRR parameters
+sL = [0.01,0.1,0.5,1,2]
+tauL = [0.1,0.5,1]
+x = 0
+fig, ax = plt.subplots(len(tauL),len(sL), figsize=(40,30))
+ax = ax.reshape(1,-1)
+for j in range(len(tauL)):
+    for i in range(len(sL)):
+        ImgR = IKRR(Xs)
+        Ia = ImgR.train(s=sL[i], tau=tauL[j], center=False, thres=0.1, kernel="exp", method="Ridge")
+        Iy = ImgR.predict(s=sL[i], center=False, thres=0.1, kernel="exp", method = "Ridge")
+        Ir = ImgR.Recon(plot=False)
+        ax[0][x].imshow(Ir, cmap=plt.cm.gray)
+        ax[0][x].set_title("s = "+ str(sL[i])+ "; tau = "+ str(tauL[j]))
+        x += 1
+plt.show()
 
 
 
@@ -225,7 +231,7 @@ def calCircle(x,y, method):
         #    Suv * uc +  Svv * vc = (Suuv + Svvv) / 2
         Suv, Suu, Svv  = sum(u*v), sum(u**2), sum(v**2)
         Suuv, Suvv, Suuu, Svvv = sum(u**2 * v), sum(u * v**2), sum(u**3), sum(v**3)
-
+        
         # Solving the equation
         A = np.array([ [ Suu, Suv ], [Suv, Svv]])
         B = np.array([ Suuu + Suvv, Svvv + Suuv ]) / 2.0
@@ -247,7 +253,6 @@ def calCircle(x,y, method):
     return xc, yc, r
 
 
-
 def fitCircle(data, e, N, method, C):
 
     d = data
@@ -263,7 +268,6 @@ def fitCircle(data, e, N, method, C):
         c = 1
 
         while (c <= C) & (len(d) >= 3) :
-            print(c)
             xi, yi, ri, mi, n, di = 0, 0, 0, [], 0, []
             for _ in range(N):
                 ind = np.random.choice( len(d), size = 3)
@@ -366,7 +370,6 @@ plt.show()
 
 
 # 4.4 Comparison (4 Points)
-
 # Pick one set of inliers, sample a subset of those and maybe add a couple of outliers.
 # Here we pick the first set of inliers and sample half and then add couple of outliers from the second set
 
@@ -407,67 +410,3 @@ for i in range(len(rc_sub_lm)):
 plt.show()
 
 
-
-
-############################################################################################
-
-data.shape
-len(set(data[:,0]))
-
-x < np.max(data[:,0])
-
-np.max(data[:,1])
-np.min(data[:,1])
-
-
-
-seq = "atatatatat"
-seq.count('a')
-seq.count('t')
-
-1e-04
-
-len(d[~indi, : ])
-
-len([])
-
-mi
-np.invert(mi)
-mi.__invert__()
-
-len(d[indi._inverse_(), : ])
-
-np.invert()
-
-mi = indi.copy()
-d[~mi,:]
-
-circle = plt.Circle((cx, cy), radius=r, fill=False) # Create a circle
-plt.gca().add_patch(circle)
-
-
-data.shape
-
-
-
-np.random.choice( len(data), size = 3)
-
-
-ind = np.random.choice( len(data), size = 3)
-d[ind,:]
-d[~ind,:]
-
-mask = np.ones(len(data), dtype=bool)
-mask[ind] = False
-
-
-test = xc.copy()
-
-
-    
-id = None
-mask[ind] = False
-mask[[]] = False
-
-id = None
-id = ind.copy()
